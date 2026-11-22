@@ -1,0 +1,35 @@
+#ifndef MUTABLEARRAYSEQUENCE_HPP
+#define MUTABLEARRAYSEQUENCE_HPP
+
+#include "Sequences/ArraySequence.hpp"
+
+// Изменяемая последовательность на основе массива
+template <class T> class MutableArraySequence : public ArraySequence<T> {
+public:
+    // Конструктор по умолчанию
+    MutableArraySequence(): ArraySequence<T>() {}
+
+    // Конструктор: создаю последовательность из массива элементов
+    MutableArraySequence(T* items, int count): ArraySequence<T>(items, count) {}
+
+    // Конструктор копирования
+    MutableArraySequence(const MutableArraySequence<T>& other): ArraySequence<T>(other) {}
+
+    // Копирующее присваивание
+    MutableArraySequence<T>& operator=(const MutableArraySequence<T>& other) {
+        ArraySequence<T>::operator=(other);
+        return *this;
+    }
+
+    // Возвращаю текущий объект для изменения (без копирования)
+    MutableArraySequence<T>* Instance() override {
+        return this;
+    }
+
+    // Создаю новую пустую изменяемую последовательность
+    MutableArraySequence<T>* CreateEmpty() const override {
+        return new MutableArraySequence<T>();
+    }
+};
+
+#endif // MUTABLEARRAYSEQUENCE_HPP
