@@ -4,12 +4,15 @@ import json
 import math
 from pathlib import Path
 import subprocess
+import tempfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from route_benchmark import ALGORITHMS as BENCHMARK_ALGORITHMS
+from route_benchmark import CSV_FIELDS, compare_large_graph
+
 
 PROJECT = Path(__file__).resolve().parent
-CORE = PROJECT / "build" / "release" / "graph_adapter"
 
 BACKGROUND = "#202729"
 PANEL = "#182022"
@@ -23,12 +26,20 @@ ALGORITHMS = {"Дейкстра": "dijkstra", "Беллман–Форд": "bell
 TOPOLOGIES = {"Цепочка": "chain", "Кольцо": "cycle", "Отдельные цепочки": "separate"}
 
 
-def run_core(*args, graph=None):
-    if not CORE.is_file():
-        raise ValueError("Запустите приложение командой make run.")
+def run_core(program, *args, graph=None):
+    # Собираю адаптер один раз за запуск окна.
+    if not program.is_file():
+        sources = ("Src/gui_adapter.cpp", "Ui/GraphAdapter.cpp", "Ui/GraphIO.cpp")
+        build = subprocess.run(
+            ["c++", "-std=c++17", "-O2", "-I", str(PROJECT),
+             *(str(PROJECT / source) for source in sources), "-o", str(program)],
+            capture_output=True, encoding="utf-8", timeout=90,
+        )
+        if build.returncode:
+            raise ValueError(build.stderr.strip() or "Не удалось собрать C++-адаптер.")
     request = " ".join(str(arg) for arg in args) + "\n"
     result = subprocess.run(
-        [str(CORE)], input=request + (graph or ""), capture_output=True,
+        [str(program)], input=request + (graph or ""), capture_output=True,
         encoding="utf-8", timeout=60,
     )
     if result.returncode:
@@ -61,8 +72,11 @@ class App(tk.Tk):
         self.status = tk.StringVar()
         self.summary = tk.StringVar(value="Схема кампуса")
 
+        self.folder = tempfile.TemporaryDirectory(prefix="campus-ui-")
+        self.program = Path(self.folder.name) / "graph_adapter"
         self.worker = ThreadPoolExecutor(max_workers=1)
         self.comparison = None
+        self.benchmark_window = None
         self.protocol("WM_DELETE_WINDOW", self.close)
         self.build_window()
         self.update_buttons()
@@ -132,8 +146,10 @@ class App(tk.Tk):
         self.canvas.grid(row=1, column=0, sticky="nsew")
         self.canvas.bind("<Configure>", lambda event: self.draw_graph())
 
-        ttk.Label(main, text="Результат", style="Section.TLabel").grid(
-            row=4, column=0, sticky="w", pady=(12, 6))
+        result_header = ttk.Frame(main)
+        result_header.grid(row=4, column=0, sticky="ew", pady=(9, 5))
+        ttk.Label(result_header, text="Результат", style="Section.TLabel").pack(side="left")
+        ttk.Button(result_header, text="Большой граф", command=self.show_benchmark).pack(side="right")
         result_area = ttk.Frame(main)
         result_area.grid(row=5, column=0, sticky="ew")
         result_area.columnconfigure(0, weight=1)
@@ -271,7 +287,7 @@ class App(tk.Tk):
         return f"{vertex} · {self.vertices[vertex]}"
 
     def accept_graph(self, graph):
-        data = json.loads(run_core("show", graph=graph))
+        data = json.loads(run_core(self.program, "show", graph=graph))
         self.vertices = data["vertices"]
         self.edges = data["edges"]
         self.graph_text = graph
@@ -311,7 +327,7 @@ class App(tk.Tk):
 
     def load_example(self):
         try:
-            self.accept_graph(run_core("demo"))
+            self.accept_graph(run_core(self.program, "demo"))
             self.to_box.current(3)
             self.find_route()
         except (ValueError, OSError, subprocess.SubprocessError) as error:
@@ -323,7 +339,7 @@ class App(tk.Tk):
         if topology == "separate":
             args.append(self.group_count.get().strip())
         try:
-            self.accept_graph(run_core("generate", *args))
+            self.accept_graph(run_core(self.program, "generate", *args))
         except (ValueError, OSError, subprocess.SubprocessError) as error:
             self.set_status(str(error), error=True)
 
@@ -332,7 +348,7 @@ class App(tk.Tk):
             return
         try:
             data = json.loads(run_core(
-                "route", ALGORITHMS[self.algorithm.get()], self.from_box.current(),
+                self.program, "route", ALGORITHMS[self.algorithm.get()], self.from_box.current(),
                 self.to_box.current(), graph=self.graph_text,
             ))
             self.path = data["path"]
@@ -352,7 +368,7 @@ class App(tk.Tk):
         if self.editor_text() != self.graph_text:
             return
         try:
-            data = json.loads(run_core("components", graph=self.graph_text))
+            data = json.loads(run_core(self.program, "components", graph=self.graph_text))
             self.groups = data["groups"]
             self.path = []
             self.draw_graph()
@@ -371,7 +387,7 @@ class App(tk.Tk):
         source = self.from_box.current()
         repeats = self.repeats.get().strip()
         graph = self.graph_text
-        self.comparison = self.worker.submit(run_core, "compare", source, repeats, graph=graph)
+        self.comparison = self.worker.submit(run_core, self.program, "compare", source, repeats, graph=graph)
         self.update_buttons()
         self.set_status("Сравниваю время поиска до всех достижимых корпусов…")
         self.after(50, self.finish_comparison, source, repeats, graph)
@@ -414,6 +430,12 @@ class App(tk.Tk):
             self.set_status(f"Сохранено в {Path(destination).name}")
         except OSError as error:
             self.set_status(str(error), error=True)
+
+    def show_benchmark(self):
+        if self.benchmark_window is None:
+            self.benchmark_window = BenchmarkWindow(self)
+        self.benchmark_window.deiconify()
+        self.benchmark_window.lift()
 
     def graph_positions(self, width, height):
         count = len(self.vertices)
@@ -483,8 +505,133 @@ class App(tk.Tk):
             canvas.tag_lower(background, label)
 
     def close(self):
+        if self.comparison is None:
+            self.folder.cleanup()
+        else:
+            folder = self.folder
+            self.comparison.add_done_callback(lambda _: folder.cleanup())
         self.worker.shutdown(wait=False, cancel_futures=True)
         self.destroy()
+
+
+class BenchmarkWindow(tk.Toplevel):
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
+        self.title("Замер на большом графе")
+        self.configure(background=BACKGROUND)
+        self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self.withdraw)
+
+        self.topology = tk.StringVar(value="Цепочка")
+        self.size = tk.StringVar(value="4096")
+        self.seed = tk.StringVar(value="42")
+        self.repeats = tk.StringVar(value="7")
+        self.status = tk.StringVar()
+        self.measurements = []
+
+        body = ttk.Frame(self, padding=18)
+        body.pack(fill="both", expand=True)
+        controls = ttk.Frame(body)
+        controls.pack(fill="x", pady=(0, 10))
+        app.add_combo(controls, 0, "Топология", self.topology, 19, tuple(TOPOLOGIES))
+        app.add_entry(controls, 1, "Вершины", self.size, width=7)
+        app.add_entry(controls, 2, "Seed", self.seed, width=8)
+        app.add_entry(controls, 3, "Повторы", self.repeats, width=6)
+
+        style = ttk.Style(self)
+        style.configure("Benchmark.Treeview", background=PANEL, fieldbackground=PANEL,
+                        foreground=TEXT, rowheight=26)
+        style.configure("Benchmark.Treeview.Heading", background="#35433F", foreground=TEXT)
+        columns = ("algorithm", "time", "memory")
+        self.table = ttk.Treeview(body, columns=columns, show="headings", height=2,
+                                  style="Benchmark.Treeview")
+        for column, title, width in zip(
+            columns, ("Алгоритм", "Медиана, мкс", "Пик RSS, МиБ"), (160, 130, 135),
+        ):
+            self.table.heading(column, text=title)
+            self.table.column(column, width=width, anchor="w" if column == "algorithm" else "e")
+        self.table.pack(fill="x")
+
+        actions = ttk.Frame(body)
+        actions.pack(fill="x", pady=(10, 0))
+        self.start_button = ttk.Button(actions, text="Сравнить", style="Accent.TButton", command=self.start)
+        self.start_button.pack(side="left")
+        self.export_button = ttk.Button(actions, text="Экспорт CSV", command=self.save_csv, state="disabled")
+        self.export_button.pack(side="left", padx=(8, 0))
+        self.status_label = ttk.Label(body, textvariable=self.status, style="Muted.TLabel", wraplength=425)
+        self.status_label.pack(fill="x", pady=(8, 0))
+        self.set_status("До 4096 вершин. Пик памяти учитывает матрицу графа.")
+
+    def set_status(self, message, error=False):
+        self.status.set(message)
+        self.status_label.configure(style="Error.TLabel" if error else "Muted.TLabel")
+
+    def start(self):
+        if self.app.comparison is not None:
+            self.set_status("Дождитесь завершения текущего сравнения.")
+            return
+        try:
+            size = int(self.size.get())
+            seed = int(self.seed.get())
+            repeats = int(self.repeats.get())
+        except ValueError:
+            self.set_status("Число вершин, seed и повторы должны быть целыми числами.", error=True)
+            return
+        if not 3 <= size <= 4096 or not 0 <= seed <= 4294967295 or not 1 <= repeats <= 50:
+            self.set_status("Вершины от 3 до 4096, seed от 0 до 4294967295, повторы от 1 до 50.", error=True)
+            return
+        if not self.app.program.is_file():
+            self.set_status("Сначала загрузите пример, чтобы собрать C++-адаптер.", error=True)
+            return
+
+        topology = TOPOLOGIES[self.topology.get()]
+        self.app.comparison = self.app.worker.submit(
+            compare_large_graph, self.app.program, topology, size, seed, repeats,
+        )
+        self.app.update_buttons()
+        self.start_button.configure(state="disabled")
+        self.set_status(f"Замер на {size} вершинах, по {repeats} запусков…")
+        self.after(50, self.finish)
+
+    def finish(self):
+        future = self.app.comparison
+        if not future.done():
+            self.after(50, self.finish)
+            return
+        self.app.comparison = None
+        try:
+            rows = future.result()
+            self.table.delete(*self.table.get_children())
+            for row in rows:
+                self.table.insert("", "end", values=(
+                    BENCHMARK_ALGORITHMS[row["algorithm"]], f"{row['median_us']:.3f}",
+                    f"{row['peak_rss_bytes'] / (1024 * 1024):.2f}",
+                ))
+            self.measurements.extend(rows)
+            self.export_button.configure(state="normal")
+            self.set_status(f"{rows[0]['vertices']} вершин · Расстояния обоих алгоритмов совпали.")
+        except (ValueError, OSError, subprocess.SubprocessError) as error:
+            self.set_status(str(error), error=True)
+        finally:
+            self.start_button.configure(state="normal")
+            self.app.update_buttons()
+
+    def save_csv(self):
+        destination = filedialog.asksaveasfilename(
+            parent=self, title="Сохранить замеры", initialfile="large_graph_benchmark.csv",
+            defaultextension=".csv", filetypes=[("CSV", "*.csv")],
+        )
+        if not destination:
+            return
+        try:
+            with open(destination, "w", encoding="utf-8", newline="") as file:
+                writer = csv.DictWriter(file, fieldnames=CSV_FIELDS)
+                writer.writeheader()
+                writer.writerows(self.measurements)
+            self.set_status(f"Сохранено в {Path(destination).name}")
+        except OSError as error:
+            self.set_status(str(error), error=True)
 
 
 if __name__ == "__main__":

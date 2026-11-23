@@ -7,7 +7,7 @@
 
 #include "Include/RouteMeasurement.hpp"
 
-const int MaxCampusSize = 1024;
+const int MaxCampusSize = 2048;
 
 enum class RouteAlgorithm {
     Dijkstra,

@@ -29,7 +29,7 @@ $(ADAPTER_TARGET): $(ADAPTER_SOURCES) $(HEADERS) Makefile
 
 release: $(TARGET) $(ADAPTER_TARGET)
 
-run: $(ADAPTER_TARGET)
+run:
 	$(PYTHON) gui.py
 
 $(TEST_TARGET): $(TEST_SOURCES) $(HEADERS) Makefile

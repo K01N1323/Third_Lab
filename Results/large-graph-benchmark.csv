@@ -1,0 +1,7 @@
+topology,vertices,source,seed,repeats,algorithm,median_us,peak_rss_bytes
+chain,1024,1023,42,21,dijkstra,1672.12,18726912
+chain,1024,1023,42,21,bellman-ford,2858.38,18857984
+chain,2048,2047,42,21,dijkstra,6769.62,69107712
+chain,2048,2047,42,21,bellman-ford,11336.4,69238784
+chain,4096,4095,42,21,dijkstra,26367.2,270483456
+chain,4096,4095,42,21,bellman-ford,43525.3,270729216

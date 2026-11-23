@@ -69,6 +69,36 @@ static void WriteTimingsJson(std::ostream& output, const RouteTimings& times) {
            << ",\"bellman_ford_us\":" << times.bellmanFord << "}\n";
 }
 
+static void WriteBenchmarkJson(std::ostream& output, RouteAlgorithm algorithm,
+                               GraphTopology topology, int size, unsigned int seed, int repeats) {
+    if (size < 3 || size > 4096) {
+        throw std::invalid_argument("Размер для замера должен быть от 3 до 4096");
+    }
+    CheckRepeats(repeats);
+
+    CampusGraph graph = GenerateGraph(topology, size, seed);
+    int source = size - 1;
+    auto search = algorithm == RouteAlgorithm::Dijkstra
+        ? Dijkstra<std::string, double>
+        : BellmanFord<std::string, double>;
+    DynamicArray<double> times(repeats);
+    for (int repeat = 0; repeat < repeats - 1; repeat++) {
+        double time = 0;
+        MeasureSearch(search, graph, source, time);
+        times.Set(repeat, time);
+    }
+    double lastTime = 0;
+    auto paths = MeasureSearch(search, graph, source, lastTime);
+    times.Set(repeats - 1, lastTime);
+
+    output << "{\"median_us\":" << Median(times) << ",\"distances\":[";
+    for (int vertex = 0; vertex < size; vertex++) {
+        if (vertex > 0) {output << ',';}
+        output << paths.GetDistance(vertex);
+    }
+    output << "]}\n";
+}
+
 static void CheckEnd(std::istream& input, const char* error) {
     std::string extra;
     if (input >> extra) {throw std::invalid_argument(error);}
@@ -124,6 +154,14 @@ int RunGraphAdapter() {
             int repeats = ParseInt(ReadParameter(parameters));
             CheckEnd(parameters, extraParameters);
             WriteTimingsJson(std::cout, CompareRoutes(ReadAdapterGraph(), source, repeats));
+        } else if (command == "large-benchmark") {
+            auto algorithm = ParseAlgorithm(ReadParameter(parameters));
+            auto topology = ParseTopology(ReadParameter(parameters));
+            int size = ParseInt(ReadParameter(parameters));
+            unsigned int seed = ParseSeed(ReadParameter(parameters));
+            int repeats = ParseInt(ReadParameter(parameters));
+            CheckEnd(parameters, extraParameters);
+            WriteBenchmarkJson(std::cout, algorithm, topology, size, seed, repeats);
         } else if (command == "performance") {
             int maxSize = ParseInt(ReadParameter(parameters));
             int repeats = ParseInt(ReadParameter(parameters));
