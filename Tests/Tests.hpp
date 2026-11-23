@@ -92,7 +92,7 @@ inline void RunRouteTests(int& tests_passed, int& tests_failed) {
     graph.AddEdge(1, 3, 0);
 
     const int origin[] = {0};
-    const auto algorithms = {GraphSearch::Dijkstra<int, double>, GraphSearch::BellmanFord<int, double>};
+    const auto algorithms = {Dijkstra<int, double>, BellmanFord<int, double>};
     for (auto search : algorithms) {
         auto paths = search(graph, 0);
         CheckGraph(paths.GetDistance(1) == 1.5L && paths.GetDistance(2) == 0 &&
@@ -115,7 +115,7 @@ inline void RunRouteTests(int& tests_passed, int& tests_failed) {
 
     Graph<int, int> reverseChain(8);
     for (int vertex = 1; vertex < 8; vertex++) {reverseChain.AddEdge(vertex - 1, vertex, 2);}
-    auto paths = GraphSearch::BellmanFord(reverseChain, 7);
+    auto paths = BellmanFord(reverseChain, 7);
     CheckGraph(paths.GetDistance(0) == 14 && paths.GetPath(0).GetLength() == 8 &&
                CheckPath(reverseChain, paths, 7, 0),
                "Беллман–Форд выполняет все нужные проходы в обратной цепочке",
@@ -125,13 +125,13 @@ inline void RunRouteTests(int& tests_passed, int& tests_failed) {
     long double max = std::numeric_limits<long double>::max();
     large.AddEdge(0, 1, max);
     large.AddEdge(1, 2, max);
-    CheckGraph(TestThrows<std::runtime_error>([&]() {GraphSearch::Dijkstra(large, 0);}) &&
-               TestThrows<std::runtime_error>([&]() {GraphSearch::BellmanFord(large, 0);}),
+    CheckGraph(TestThrows<std::runtime_error>([&]() {Dijkstra(large, 0);}) &&
+               TestThrows<std::runtime_error>([&]() {BellmanFord(large, 0);}),
                "Недопустимо большую длину достижимого маршрута отличаю от отсутствия пути",
                tests_passed, tests_failed);
     large.AddEdge(0, 2, max);
-    CheckGraph(GraphSearch::Dijkstra(large, 0).GetDistance(2) == max &&
-               GraphSearch::BellmanFord(large, 0).GetDistance(2) == max,
+    CheckGraph(Dijkstra(large, 0).GetDistance(2) == max &&
+               BellmanFord(large, 0).GetDistance(2) == max,
                "Слишком длинный обход не мешает найти представимый маршрут",
                tests_passed, tests_failed);
 }
@@ -144,13 +144,13 @@ inline void RunComponentTests(int& tests_passed, int& tests_failed) {
     const int first[] = {0, 2, 4};
     const int second[] = {1, 3};
     const int third[] = {5};
-    auto groups = GraphSearch::FindComponents(graph);
+    auto groups = FindComponents(graph);
     CheckGraph(groups.GetLength() == 3 && CheckVertices(groups.Get(0), first, 3) &&
                CheckVertices(groups.Get(1), second, 2) && CheckVertices(groups.Get(2), third, 1),
                "Обход включает нулевые рёбра и выделяет изолированный корпус",
                tests_passed, tests_failed);
     graph.RemoveEdge(0, 2);
-    groups = GraphSearch::FindComponents(graph);
+    groups = FindComponents(graph);
     const int isolated[] = {0};
     const int remaining[] = {2, 4};
     CheckGraph(groups.GetLength() == 4 && CheckVertices(groups.Get(0), isolated, 1) &&
@@ -158,8 +158,8 @@ inline void RunComponentTests(int& tests_passed, int& tests_failed) {
                CheckVertices(groups.Get(3), third, 1),
                "Удаление связи меняет состав групп",
                tests_passed, tests_failed);
-    auto single = GraphSearch::FindComponents(Graph<int, int>(1));
-    CheckGraph(GraphSearch::FindComponents(Graph<int, int>(0)).GetLength() == 0 &&
+    auto single = FindComponents(Graph<int, int>(1));
+    CheckGraph(FindComponents(Graph<int, int>(0)).GetLength() == 0 &&
                single.GetLength() == 1 && CheckVertices(single.Get(0), isolated, 1),
                "Пустая схема и схема из одного корпуса",
                tests_passed, tests_failed);
@@ -180,10 +180,10 @@ inline void RunGeneratorTests(int& tests_passed, int& tests_failed) {
     auto cycle = GenerateGraph(GraphTopology::Cycle, 8, 42);
     auto separate = GenerateGraph(GraphTopology::SeparateChains, 8, 42, 3);
     CheckGraph(cycle.GetEdges().GetLength() == 8 && cycle.FindWeight(0, 7) != nullptr &&
-               GraphSearch::FindComponents(cycle).GetLength() == 1,
+               FindComponents(cycle).GetLength() == 1,
                "Кольцо замыкает цепочку",
                tests_passed, tests_failed);
-    auto groups = GraphSearch::FindComponents(separate);
+    auto groups = FindComponents(separate);
     const int firstGroup[] = {0, 1, 2};
     const int secondGroup[] = {3, 4, 5};
     const int thirdGroup[] = {6, 7};
@@ -203,8 +203,8 @@ inline void RunGeneratorTests(int& tests_passed, int& tests_failed) {
     bool agree = true;
     for (const auto* graph : {&chain, &cycle, &separate}) {
         for (int source = 0; source < graph->GetVertexCount(); source++) {
-            auto dijkstra = GraphSearch::Dijkstra(*graph, source);
-            auto bellman = GraphSearch::BellmanFord(*graph, source);
+            auto dijkstra = Dijkstra(*graph, source);
+            auto bellman = BellmanFord(*graph, source);
             agree = agree && EqualDistances(dijkstra, bellman);
             for (int target = 0; target < graph->GetVertexCount(); target++) {
                 agree = agree && CheckPath(*graph, dijkstra, source, target) &&

@@ -118,7 +118,7 @@ int RunGraphAdapter() {
             WriteRouteJson(std::cout, FindRoute(ReadAdapterGraph(), algorithm, source, destination));
         } else if (command == "components") {
             CheckEnd(parameters, extraParameters);
-            WriteComponentsJson(std::cout, GraphSearch::FindComponents(ReadAdapterGraph()));
+            WriteComponentsJson(std::cout, FindComponents(ReadAdapterGraph()));
         } else if (command == "compare") {
             int source = ParseInt(ReadParameter(parameters));
             int repeats = ParseInt(ReadParameter(parameters));

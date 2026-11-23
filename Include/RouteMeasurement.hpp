@@ -64,8 +64,8 @@ inline RouteTimings CompareRoutes(const CampusGraph& graph, int source, int repe
     DynamicArray<double> dijkstraTimes(repeats);
     DynamicArray<double> bellmanFordTimes(repeats);
 
-    auto dijkstra = GraphSearch::Dijkstra<std::string, double>;
-    auto bellmanFord = GraphSearch::BellmanFord<std::string, double>;
+    auto dijkstra = Dijkstra<std::string, double>;
+    auto bellmanFord = BellmanFord<std::string, double>;
     for (int repeat = 0; repeat < repeats; repeat++) {
         bool dijkstraFirst = repeat % 2 == 0;
         double firstTime = 0;

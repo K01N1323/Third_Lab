@@ -22,8 +22,8 @@ private:
         TWeight weight = TWeight();
     };
 
-    SquareMatrix<EdgeCell> edges;
-    DynamicArray<TVertex> vertices;
+    SquareMatrix<EdgeCell> edges; // матрица смежности 
+    DynamicArray<TVertex> vertices; // вершины
 
 public:
     explicit Graph(int count): edges(count), vertices(count) {}
@@ -34,7 +34,7 @@ public:
 
     void CheckVertex(int index) const {
         if (index < 0 || index >= this->GetVertexCount()) {
-            throw std::out_of_range("Вершина с таким номером отсутствует");
+            throw std::out_of_range("Вершина с таким номером отсутствует или неправильный индекс");
         }
     }
 

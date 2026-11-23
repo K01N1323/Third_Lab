@@ -126,8 +126,8 @@ RouteAlgorithm ParseAlgorithm(const std::string& name) {
 RouteResult FindRoute(const CampusGraph& graph, RouteAlgorithm algorithm, int source, int destination) {
     graph.CheckVertex(destination);
     auto paths = algorithm == RouteAlgorithm::Dijkstra
-        ? GraphSearch::Dijkstra(graph, source)
-        : GraphSearch::BellmanFord(graph, source);
+        ? Dijkstra(graph, source)
+        : BellmanFord(graph, source);
     return {paths.GetPath(destination), paths.GetDistance(destination)};
 }
 

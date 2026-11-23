@@ -24,7 +24,7 @@ public:
         return distances.GetSize();
     }
 
-    // Для недостижимой вершины возвращаю -1. Длина пути может быть равна нулю.
+    // Для недостижимой вершины возвращаю -1. Длина пути может быть равна нулю
     long double GetDistance(int vertex) const {
         return distances.Get(vertex);
     }
@@ -65,9 +65,7 @@ public:
 using GraphComponent = MutableArraySequence<int>;
 using GraphComponents = MutableArraySequence<GraphComponent>;
 
-namespace GraphSearch {
-
-// Список группы одновременно служит очередью обхода.
+// Список группы одновременно служит очередью обхода
 template <typename TVertex, typename TWeight>
 GraphComponent CollectComponent(const Graph<TVertex, TWeight>& graph, int start,
                                 DynamicArray<bool>& visited) {
@@ -164,7 +162,5 @@ ShortestPaths BellmanFord(const Graph<TVertex, TWeight>& graph, int source) {
     CheckDistances(graph, source, paths, overflow);
     return paths;
 }
-
-} // namespace GraphSearch
 
 #endif // GRAPH_ALGORITHMS_HPP

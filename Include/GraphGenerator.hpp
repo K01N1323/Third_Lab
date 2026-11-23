@@ -45,7 +45,7 @@ inline CampusGraph GenerateGraph(GraphTopology topology, int count, unsigned int
         }
         first += size;
     }
-
+ 
     if (topology == GraphTopology::Cycle) {graph.AddEdge(count - 1, 0, distance(engine));}
     return graph;
 }

@@ -64,7 +64,7 @@ int RunMenu() {
                 int destination = ParseInt(ReadArgument("Номер конечного корпуса: "));
                 PrintRoute(graph, FindRoute(graph, algorithm, source, destination));
             } else if (option == "5") {
-                auto groups = GraphSearch::FindComponents(graph);
+                auto groups = FindComponents(graph);
                 std::cout << "Количество групп — " << groups.GetLength() << '\n';
                 for (int index = 0; index < groups.GetLength(); index++) {
                     std::cout << index + 1 << '.';
